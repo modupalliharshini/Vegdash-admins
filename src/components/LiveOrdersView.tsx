@@ -1,7 +1,159 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ShoppingBag, Eye, Check, X, Shield, MapPin, Truck, RefreshCw, User, Calendar, CheckSquare } from 'lucide-react';
-import { getRestaurantDetails } from '../mockData';
+
 import supabase from '../supabaseClient';
+
+const LeafletMap: React.FC<{
+  restaurantLat: number;
+  restaurantLng: number;
+  customerLat: number;
+  customerLng: number;
+  riderLat: number | null;
+  riderLng: number | null;
+  stage: 'to_store' | 'to_customer' | null;
+  orderStatus: string;
+}> = ({ restaurantLat, restaurantLng, customerLat, customerLng, riderLat, riderLng, stage, orderStatus }) => {
+  const mapRef = React.useRef<HTMLDivElement | null>(null);
+  const leafletMapInstance = React.useRef<any>(null);
+  const riderMarkerRef = React.useRef<any>(null);
+  const pathPolylineRef = React.useRef<any>(null);
+  const [mapLibLoaded, setMapLibLoaded] = React.useState(typeof window !== 'undefined' && !!(window as any).L);
+
+  React.useEffect(() => {
+    if (mapLibLoaded) return;
+    const interval = setInterval(() => {
+      if (typeof window !== 'undefined' && (window as any).L) {
+        setMapLibLoaded(true);
+        clearInterval(interval);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [mapLibLoaded]);
+
+  React.useEffect(() => {
+    if (!mapLibLoaded) return;
+    const L = (window as any).L;
+    if (!L || !mapRef.current) return;
+
+    if (!leafletMapInstance.current) {
+      const map = L.map(mapRef.current, {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([restaurantLat, restaurantLng], 15);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      leafletMapInstance.current = map;
+
+      // Add Restaurant marker
+      const restIcon = L.divIcon({
+        className: 'custom-rest-icon',
+        html: `<div style="background-color: #3B82F6; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><span style="color: white; font-size: 10px; font-weight: bold;">R</span></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+      L.marker([restaurantLat, restaurantLng], { icon: restIcon }).addTo(map);
+
+      // Add Customer marker
+      const custIcon = L.divIcon({
+        className: 'custom-cust-icon',
+        html: `<div style="background-color: #EF4444; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><span style="color: white; font-size: 10px; font-weight: bold;">C</span></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+      L.marker([customerLat, customerLng], { icon: custIcon }).addTo(map);
+
+      // Add Rider marker if available
+      if (riderLat !== null && riderLng !== null) {
+        const riderIcon = L.divIcon({
+          className: 'custom-rider-icon',
+          html: `<div style="background-color: #10B981; width: 28px; height: 28px; border-radius: 50%; border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.4);"><span style="color: white; font-size: 12px; display: block; text-align: center; line-height: 22px;">🏍️</span></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        riderMarkerRef.current = L.marker([riderLat, riderLng], { icon: riderIcon }).addTo(map);
+
+        const pathPoints = stage === 'to_store' 
+          ? [[riderLat, riderLng], [restaurantLat, restaurantLng]]
+          : [[restaurantLat, restaurantLng], [customerLat, customerLng]];
+
+        pathPolylineRef.current = L.polyline(pathPoints, {
+          color: stage === 'to_store' ? '#3B82F6' : '#10B981',
+          weight: 5,
+          opacity: 0.8,
+          dashArray: stage === 'to_store' ? '5, 10' : undefined
+        }).addTo(map);
+
+        try {
+          map.fitBounds(pathPolylineRef.current.getBounds(), { padding: [40, 40] });
+        } catch (_) {}
+      } else {
+        // Just fit bounds restaurant and customer
+        const bounds = L.latLngBounds([restaurantLat, restaurantLng], [customerLat, customerLng]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    } else {
+      const map = leafletMapInstance.current;
+      // Update rider marker position
+      if (riderLat !== null && riderLng !== null) {
+        if (riderMarkerRef.current) {
+          riderMarkerRef.current.setLatLng([riderLat, riderLng]);
+        } else {
+          const riderIcon = L.divIcon({
+            className: 'custom-rider-icon',
+            html: `<div style="background-color: #10B981; width: 28px; height: 28px; border-radius: 50%; border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.4);"><span style="color: white; font-size: 12px; display: block; text-align: center; line-height: 22px;">🏍️</span></div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
+          riderMarkerRef.current = L.marker([riderLat, riderLng], { icon: riderIcon }).addTo(map);
+        }
+
+        // Update polyline path
+        const pathPoints = stage === 'to_store'
+          ? [[riderLat, riderLng], [restaurantLat, restaurantLng]]
+          : [[restaurantLat, restaurantLng], [customerLat, customerLng]];
+
+        if (pathPolylineRef.current) {
+          pathPolylineRef.current.setLatLngs(pathPoints);
+          pathPolylineRef.current.setStyle({
+            color: stage === 'to_store' ? '#3B82F6' : '#10B981',
+            dashArray: stage === 'to_store' ? '5, 10' : null
+          });
+        } else {
+          pathPolylineRef.current = L.polyline(pathPoints, {
+            color: stage === 'to_store' ? '#3B82F6' : '#10B981',
+            weight: 5,
+            opacity: 0.8,
+            dashArray: stage === 'to_store' ? '5, 10' : undefined
+          }).addTo(map);
+        }
+      } else {
+        if (riderMarkerRef.current) {
+          map.removeLayer(riderMarkerRef.current);
+          riderMarkerRef.current = null;
+        }
+        if (pathPolylineRef.current) {
+          map.removeLayer(pathPolylineRef.current);
+          pathPolylineRef.current = null;
+        }
+      }
+    }
+  }, [riderLat, riderLng, stage, restaurantLat, restaurantLng, customerLat, customerLng, orderStatus, mapLibLoaded]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (leafletMapInstance.current) {
+        leafletMapInstance.current.remove();
+        leafletMapInstance.current = null;
+      }
+    };
+  }, []);
+
+  return <div ref={mapRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '12px' }} />;
+};
 
 interface LiveOrdersViewProps {
   orders: any[];
@@ -27,8 +179,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     return cust ? cust.name : `Customer (${customerId.substring(0, 8)}...)`;
   };
 
-  // Map tracking progress state
-  const [riderProgress, setRiderProgress] = useState(0);
+
 
   // Split orders into queues
   const pendingOrders = orders.filter(o => o.orderStatus === 'placed');
@@ -48,48 +199,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
   const displayedOrders = getActiveList();
 
-  // Simulate rider movement when order status is "out_for_delivery"
-  useEffect(() => {
-    let interval: any;
-    
-    // Parse driver safely
-    let parsedDriver: any = null;
-    if (selectedOrder && selectedOrder.driver) {
-      if (typeof selectedOrder.driver === 'string') {
-        try {
-          parsedDriver = JSON.parse(selectedOrder.driver);
-        } catch (_) {}
-      } else {
-        parsedDriver = selectedOrder.driver;
-      }
-    }
 
-    if (selectedOrder && selectedOrder.orderStatus === 'out_for_delivery') {
-      if (parsedDriver && parsedDriver.location && typeof parsedDriver.location.progress === 'number') {
-        // Use live rider progress from database
-        setRiderProgress(parsedDriver.location.progress);
-      } else {
-        // Fallback to simulation if no live rider coordinates
-        setRiderProgress(0.1);
-        interval = setInterval(() => {
-          setRiderProgress(prev => {
-            if (prev >= 0.95) {
-              return 0.1;
-            }
-            return prev + 0.05;
-          });
-        }, 1000);
-      }
-    } else if (selectedOrder && selectedOrder.orderStatus === 'delivered') {
-      setRiderProgress(1.0);
-    } else {
-      setRiderProgress(0.0);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [selectedOrder]);
 
   const updateStatus = async (orderId: string, nextStatus: string) => {
     setUpdatingId(orderId);
@@ -146,20 +256,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     updateStatus(orderId, 'cancelled');
   };
 
-  // Calculate driver tracking position on curved path: y = f(x)
-  const getCoordinatesAlongPath = (progress: number) => {
-    const startX = 60;
-    const startY = 140;
-    const endX = 390;
-    const endY = 60;
-    
-    const currentX = startX + (endX - startX) * progress;
-    const currentY = startY + (endY - startY) * progress - Math.sin(progress * Math.PI) * 40;
-    
-    return { x: currentX, y: currentY };
-  };
 
-  const currentRiderPos = getCoordinatesAlongPath(riderProgress);
 
   return (
     <div>
@@ -395,58 +492,17 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                 Live Delivery Route Tracker
               </div>
               
-              <div className="tracking-map">
-                <div className="map-grid-pattern" />
-                
-                <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-                  <path 
-                    d="M 60,140 Q 225,50 390,60" 
-                    fill="none" 
-                    stroke="rgba(255,255,255,0.06)" 
-                    strokeWidth="12" 
-                    strokeLinecap="round"
-                  />
-                  <path 
-                    d="M 60,140 Q 225,50 390,60" 
-                    fill="none" 
-                    stroke={selectedOrder.orderStatus === 'cancelled' ? 'rgba(239,68,68,0.2)' : 'var(--primary)'}
-                    strokeWidth="2" 
-                    strokeDasharray="4 4" 
-                    strokeLinecap="round"
-                  />
-                </svg>
-
-                {/* Restaurant Station */}
-                <div className="map-node restaurant" style={{ left: '60px', top: '140px' }}>
-                  <div className="pulse-circle" style={{ color: 'var(--info)' }} />
-                  <Truck size={12} color="#ffffff" />
-                  <div className="map-label" style={{ left: '-20px', top: '22px' }}>
-                    {getRestaurantDetails(selectedOrder.restaurant).name}
-                  </div>
-                </div>
-
-                {/* Customer Station */}
-                <div className="map-node customer" style={{ left: '390px', top: '60px' }}>
-                  <div className="pulse-circle" style={{ color: 'var(--danger)' }} />
-                  <MapPin size={12} color="#ffffff" />
-                  <div className="map-label" style={{ right: '-20px', top: '22px' }}>
-                    Customer
-                  </div>
-                </div>
-
-                {/* Rider Dot */}
-                {selectedOrder.orderStatus !== 'cancelled' && (
-                  <div 
-                    className="map-driver" 
-                    style={{ 
-                      left: `${currentRiderPos.x}px`, 
-                      top: `${currentRiderPos.y}px` 
-                    }}
-                  >
-                    <div className="pulse-circle" style={{ color: 'var(--primary)' }} />
-                    <Truck size={10} color="#ffffff" />
-                  </div>
-                )}
+              <div className="tracking-map" style={{ height: '220px', position: 'relative', borderRadius: '12px', overflow: 'hidden' }}>
+                <LeafletMap
+                  restaurantLat={17.4483}
+                  restaurantLng={78.3741}
+                  customerLat={17.4435}
+                  customerLng={78.3812}
+                  riderLat={modalDriver?.location?.lat ?? null}
+                  riderLng={modalDriver?.location?.lng ?? null}
+                  stage={modalDriver?.location?.stage ?? null}
+                  orderStatus={selectedOrder.orderStatus}
+                />
                 
                 {/* Status HUD overlay */}
                 <div 
@@ -464,7 +520,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    zIndex: 1000
                   }}
                 >
                   <span className={`badge ${selectedOrder.orderStatus}`} style={{ padding: '2px 6px', fontSize: '9px' }}>
@@ -472,7 +529,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                   </span>
                   {selectedOrder.orderStatus === 'placed' && 'Preparing start sequence'}
                   {selectedOrder.orderStatus === 'preparing' && 'Chef cooking food'}
-                  {selectedOrder.orderStatus === 'out_for_delivery' && 'Rider transit simulated live'}
+                  {selectedOrder.orderStatus === 'ready_for_pickup' && 'Rider heading to restaurant'}
+                  {selectedOrder.orderStatus === 'out_for_delivery' && 'Rider heading to customer'}
                   {selectedOrder.orderStatus === 'delivered' && 'Order safely delivered'}
                   {selectedOrder.orderStatus === 'cancelled' && 'Delivery sequence halted'}
                 </div>
