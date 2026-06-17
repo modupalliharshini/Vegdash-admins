@@ -101,13 +101,23 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
         { status: nextStatus, timestamp: now }
       ];
 
+      const updatePayload: any = {
+        orderStatus: nextStatus,
+        statusHistory: statusHistoryUpdate,
+        updatedAt: now
+      };
+
+      if (nextStatus === 'ready_for_pickup') {
+        const randomCode = String(Math.floor(1000 + Math.random() * 9000));
+        updatePayload.driver = JSON.stringify({
+          name: 'Assigning partner...',
+          pickupCode: randomCode
+        });
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ 
-          orderStatus: nextStatus, 
-          statusHistory: statusHistoryUpdate,
-          updatedAt: now
-        })
+        .update(updatePayload)
         .eq('_id', orderId);
 
       if (error) throw error;
@@ -119,7 +129,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
         setSelectedOrder((prev: any) => ({
           ...prev,
           orderStatus: nextStatus,
-          statusHistory: statusHistoryUpdate
+          statusHistory: statusHistoryUpdate,
+          driver: updatePayload.driver || prev.driver
         }));
       }
     } catch (err: any) {
@@ -304,11 +315,27 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                           )}
 
                           {/* Ready for Pickup status controls */}
-                          {o.orderStatus === 'ready_for_pickup' && (
-                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
-                              Waiting for rider acceptance...
-                            </span>
-                          )}
+                          {o.orderStatus === 'ready_for_pickup' && (() => {
+                            let itemDriver: any = null;
+                            if (o.driver) {
+                              try {
+                                itemDriver = typeof o.driver === 'string' ? JSON.parse(o.driver) : o.driver;
+                              } catch (_) {}
+                            }
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                  Waiting for rider...
+                                </span>
+                                {itemDriver && itemDriver.pickupCode && (
+                                  <span style={{ fontSize: '12px', color: 'var(--warning)', fontWeight: 'bold', marginTop: '2px' }}>
+                                    Code: {itemDriver.pickupCode}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+
 
                           {/* Out for Delivery status controls */}
                           {o.orderStatus === 'out_for_delivery' && (
@@ -334,8 +361,19 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
       )}
 
       {/* Details Modal */}
-      {selectedOrder && (
-        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
+      {selectedOrder && (() => {
+        let modalDriver: any = null;
+        if (selectedOrder.driver) {
+          if (typeof selectedOrder.driver === 'string') {
+            try {
+              modalDriver = JSON.parse(selectedOrder.driver);
+            } catch (_) {}
+          } else {
+            modalDriver = selectedOrder.driver;
+          }
+        }
+        return (
+          <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
@@ -471,6 +509,23 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                   <span className="detail-label"><Truck size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Delivery Assignment</span>
                   <span className="detail-value" style={{ fontStyle: 'italic' }}>Platform Assigned Rider</span>
                 </div>
+                {modalDriver && modalDriver.pickupCode && (
+                  <div className="detail-row" style={{ color: 'var(--warning)', fontWeight: 'bold' }}>
+                    <span className="detail-label"><Shield size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Pickup Verification Code</span>
+                    <span className="detail-value" style={{ fontSize: '15px', color: 'var(--warning)', letterSpacing: '1px' }}>{modalDriver.pickupCode}</span>
+                  </div>
+                )}
+                {modalDriver && modalDriver.review && (
+                  <div className="glass-card" style={{ padding: '12px', marginTop: '12px', borderLeft: '3px solid var(--primary)', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>⭐ {modalDriver.review.rating}/5 Customer Rating</span>
+                    </div>
+                    <div style={{ fontStyle: 'italic', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      "{modalDriver.review.comment || 'No comment'}"
+                    </div>
+                  </div>
+                )}
+
               </div>
 
               {/* Items List */}
@@ -565,7 +620,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

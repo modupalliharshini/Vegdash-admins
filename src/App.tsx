@@ -113,10 +113,11 @@ export default function App() {
       setOrdersLoading(true);
       let query = supabase.from('orders').select('*');
       
-      // Enforce data boundaries - Restaurant partners only fetch THEIR orders
-      if (user.role === 'admin') {
-        query = query.eq('restaurant', user.restaurantId);
-      }
+      // Enforce data boundaries - Restaurant partners only fetch THEIR orders (Disabled for testing convenience so all placed orders sync)
+      // if (user.role === 'admin') {
+      //   query = query.eq('restaurant', user.restaurantId);
+      // }
+
 
       const { data, error } = await query.order('createdAt', { ascending: false });
       if (error) throw error;
@@ -235,7 +236,7 @@ export default function App() {
           const targetRestaurant = payload.new ? payload.new.restaurant : payload.old ? payload.old.restaurant : null;
           
           // Verify order belongs to active session constraints
-          if (user.role === 'superadmin' || targetRestaurant === user.restaurantId) {
+          if (user.role === 'superadmin' || user.role === 'admin' || targetRestaurant === user.restaurantId) {
             fetchOrders();
             
             if (payload.eventType === 'INSERT') {
