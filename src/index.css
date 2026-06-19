@@ -1,28 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-gradient: linear-gradient(135deg, #090d16 0%, #111827 100%);
-  --bg-color: #0b0f19;
-  --panel-bg: rgba(17, 24, 39, 0.7);
-  --panel-border: rgba(255, 255, 255, 0.08);
-  --panel-border-hover: rgba(16, 185, 129, 0.3);
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --bg-gradient: linear-gradient(135deg, #071C15 0%, #0A2E24 100%);
+  --bg-color: #071C15;
+  --panel-bg: rgba(10, 46, 36, 0.6);
+  --panel-border: rgba(167, 184, 163, 0.15);
+  --panel-border-hover: rgba(199, 169, 107, 0.4);
+  --text-primary: #FAF9F6;
+  --text-secondary: #A7B8A3;
+  --text-muted: #7E8F7A;
   
-  --primary: #10b981;
-  --primary-hover: #34d399;
-  --primary-glow: rgba(16, 185, 129, 0.15);
-  --primary-dark: #0f5b35;
+  --primary: #C7A96B; /* Luxury Gold accent in dark mode */
+  --primary-hover: #D8BC84;
+  --primary-glow: rgba(199, 169, 107, 0.15);
+  --primary-dark: #0B4D3A;
   
   --danger: #ef4444;
   --danger-glow: rgba(239, 68, 68, 0.15);
   
-  --warning: #f59e0b;
-  --warning-glow: rgba(245, 158, 11, 0.15);
+  --warning: #C7A96B;
+  --warning-glow: rgba(199, 169, 107, 0.15);
   
-  --info: #3b82f6;
-  --info-glow: rgba(59, 130, 246, 0.15);
+  --info: #a7f3d0;
+  --info-glow: rgba(167, 243, 208, 0.15);
 
   --font-title: 'Outfit', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
@@ -40,28 +40,28 @@
 }
 
 .light-theme {
-  --bg-gradient: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-  --bg-color: #f9fafb;
-  --panel-bg: rgba(255, 255, 255, 0.85);
-  --panel-border: rgba(0, 0, 0, 0.08);
-  --panel-border-hover: rgba(16, 185, 129, 0.4);
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --bg-gradient: linear-gradient(135deg, #FAF9F6 0%, #F5F3EE 100%);
+  --bg-color: #FAF9F6;
+  --panel-bg: #FFFFFF;
+  --panel-border: #E8E4DC;
+  --panel-border-hover: #C7A96B;
+  --text-primary: #1C1C1C;
+  --text-secondary: #5E5E5E;
+  --text-muted: #8A8A8A;
   
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --primary-glow: rgba(16, 185, 129, 0.12);
-  --primary-dark: #047857;
+  --primary: #0B4D3A; /* Premium Forest Green in light mode */
+  --primary-hover: #0A3B2E;
+  --primary-glow: rgba(11, 77, 58, 0.08);
+  --primary-dark: #0A3B2E;
   
   --danger: #ef4444;
-  --danger-glow: rgba(239, 68, 68, 0.1);
+  --danger-glow: rgba(239, 68, 68, 0.08);
   
-  --warning: #d97706;
-  --warning-glow: rgba(217, 119, 6, 0.1);
+  --warning: #C7A96B;
+  --warning-glow: rgba(199, 169, 107, 0.08);
   
-  --info: #2563eb;
-  --info-glow: rgba(37, 99, 235, 0.1);
+  --info: #2E7D32;
+  --info-glow: rgba(46, 125, 50, 0.08);
   
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -69,57 +69,108 @@
 }
 
 /* Light theme overrides for hardcoded elements */
-.light-theme .sidebar {
-  background: rgba(255, 255, 255, 0.9);
+.light-theme [style*="#ffffff"],
+.light-theme [style*="#fff"],
+.light-theme [style*="rgb(255, 255, 255)"],
+.light-theme [style*="white"] {
+  color: var(--text-primary) !important;
 }
+
+.light-theme h1,
+.light-theme h2,
+.light-theme h3,
+.light-theme h4,
+.light-theme h5,
+.light-theme h6 {
+  color: var(--primary) !important;
+}
+
+.light-theme .page-subtitle,
+.light-theme .stat-title,
+.light-theme .form-label,
+.light-theme .detail-label {
+  color: var(--text-secondary) !important;
+}
+
+.light-theme .sidebar {
+  background: rgba(255, 255, 255, 0.95);
+  border-right: 1px solid var(--panel-border);
+}
+
 .light-theme .logo-text {
-  background: linear-gradient(to right, #111827, #047857);
+  background: linear-gradient(to right, #0B4D3A, #C7A96B);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+.light-theme .nav-item {
+  color: var(--text-secondary);
+}
+
 .light-theme .nav-item:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-.light-theme .nav-item.active {
-  color: var(--primary-dark);
   background: var(--primary-glow);
+  color: var(--primary);
 }
+
+.light-theme .nav-item.active {
+  color: var(--primary);
+  background: var(--primary-glow);
+  border-color: rgba(11, 77, 58, 0.15);
+}
+
 .light-theme .sidebar-footer {
   background: rgba(0, 0, 0, 0.02);
+  border-color: var(--panel-border);
 }
+
 .light-theme .admin-table th {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--text-secondary);
 }
+
 .light-theme .admin-table td {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--text-primary);
 }
+
 .light-theme .admin-table tr:hover td {
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(11, 77, 58, 0.02);
 }
+
 .light-theme .activity-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--panel-border);
 }
+
 .light-theme .food-footer {
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  border-top: 1px solid var(--panel-border);
 }
+
 .light-theme .detail-row {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--panel-border);
 }
+
 .light-theme .order-item-row {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--panel-border);
 }
+
 .light-theme .demo-accounts-panel {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid var(--panel-border);
 }
+
 .light-theme .demo-login-btn {
   background: rgba(0, 0, 0, 0.02);
+  border-color: var(--panel-border);
 }
+
 .light-theme .demo-login-btn:hover {
-  color: var(--primary-dark);
+  color: var(--primary);
+  background: var(--primary-glow);
+  border-color: var(--primary);
 }
+
 .light-theme .slider {
   background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--panel-border);
 }
 .light-theme .modal-content {
   background: #ffffff;
@@ -263,14 +314,14 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 12px var(--primary-glow);
 }
 
 .logo-text {
   font-family: var(--font-title);
   font-size: 22px;
   font-weight: 800;
-  background: linear-gradient(to right, #ffffff, #a7f3d0);
+  background: linear-gradient(to right, #ffffff, var(--primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -279,11 +330,11 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  background: rgba(16, 185, 129, 0.15);
+  background: var(--primary-glow);
   color: var(--primary);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid var(--panel-border);
 }
 
 .nav-links {

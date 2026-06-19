@@ -113,10 +113,9 @@ export default function App() {
       setOrdersLoading(true);
       let query = supabase.from('orders').select('*');
       
-      // Enforce data boundaries - Restaurant partners only fetch THEIR orders (Disabled for testing convenience so all placed orders sync)
-      // if (user.role === 'admin') {
-      //   query = query.eq('restaurant', user.restaurantId);
-      // }
+      if (user.role === 'admin') {
+        query = query.eq('restaurant_id', user.restaurantId);
+      }
 
 
       const { data, error } = await query.order('createdAt', { ascending: false });
@@ -221,38 +220,32 @@ export default function App() {
     }
   }, [user]);
 
-  // Real-time Postgres subscriptions
   useEffect(() => {
     if (!user) return;
 
+    const filter = user.role === 'admin' ? `restaurant_id=eq.${user.restaurantId}` : undefined;
     const ordersChannel = supabase
       .channel('orders-portal-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
+        { event: '*', schema: 'public', table: 'orders', ...(filter ? { filter } : {}) },
         (payload: any) => {
           console.log('Real-time order payload:', payload);
+          fetchOrders();
           
-          const targetRestaurant = payload.new ? payload.new.restaurant : payload.old ? payload.old.restaurant : null;
-          
-          // Verify order belongs to active session constraints
-          if (user.role === 'superadmin' || user.role === 'admin' || targetRestaurant === user.restaurantId) {
-            fetchOrders();
-            
-            if (payload.eventType === 'INSERT') {
-              playNotificationSound();
-              showToast(
-                'New Order Received!',
-                `Order #${payload.new._id.substring(0, 8)} needs confirmation.`,
-                user.role === 'admin' ? 'order_alert' : 'info',
-                payload.new
-              );
-            } else if (payload.eventType === 'UPDATE') {
-              showToast(
-                'Order Updated',
-                `Order #${payload.new._id.substring(0, 8)} status advanced to ${payload.new.orderStatus.replace(/_/g, ' ')}.`
-              );
-            }
+          if (payload.eventType === 'INSERT') {
+            playNotificationSound();
+            showToast(
+              'New Order Received!',
+              `Order #${payload.new._id.substring(0, 8)} needs confirmation.`,
+              user.role === 'admin' ? 'order_alert' : 'info',
+              payload.new
+            );
+          } else if (payload.eventType === 'UPDATE') {
+            showToast(
+              'Order Updated',
+              `Order #${payload.new._id.substring(0, 8)} status advanced to ${(payload.new.status || payload.new.orderStatus || '').replace(/_/g, ' ')}.`
+            );
           }
         }
       )
@@ -263,24 +256,10 @@ export default function App() {
     };
   }, [user]);
 
-  // Live order operations (Accept/Reject)
-  const acceptOrder = async (orderId: string, orderData: any) => {
+  // Live order operations (Accept/Reject via RPCs)
+  const acceptOrder = async (orderId: string) => {
     try {
-      const now = new Date().toISOString();
-      const statusHistoryUpdate = [
-        ...(orderData.statusHistory || []),
-        { status: 'preparing', timestamp: now }
-      ];
-
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          orderStatus: 'preparing',
-          statusHistory: statusHistoryUpdate,
-          updatedAt: now
-        })
-        .eq('_id', orderId);
-
+      const { error } = await supabase.rpc('accept_order', { p_order_id: orderId });
       if (error) throw error;
       
       setToasts(prev => prev.filter(t => t.orderData?._id !== orderId));
@@ -291,24 +270,10 @@ export default function App() {
     }
   };
 
-  const rejectOrder = async (orderId: string, orderData: any) => {
+  const rejectOrder = async (orderId: string) => {
     if (!window.confirm('Are you sure you want to reject this order?')) return;
     try {
-      const now = new Date().toISOString();
-      const statusHistoryUpdate = [
-        ...(orderData.statusHistory || []),
-        { status: 'cancelled', timestamp: now }
-      ];
-
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          orderStatus: 'cancelled',
-          statusHistory: statusHistoryUpdate,
-          updatedAt: now
-        })
-        .eq('_id', orderId);
-
+      const { error } = await supabase.rpc('super_admin_cancel_order', { p_order_id: orderId });
       if (error) throw error;
       
       setToasts(prev => prev.filter(t => t.orderData?._id !== orderId));
@@ -357,7 +322,7 @@ export default function App() {
                 <Bell size={14} />
               </div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#ffffff' }}>{toast.title}</div>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>{toast.title}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{toast.message}</div>
               </div>
             </div>
@@ -389,7 +354,7 @@ export default function App() {
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Outlet Context
           </div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {currentRestDetails.name}
           </div>
         </div>
@@ -539,7 +504,7 @@ export default function App() {
                     <Bell size={16} />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '14px', color: '#ffffff' }}>{toast.title}</div>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{toast.title}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                       Order Amount: <strong>₹{toast.orderData?.totalAmount}</strong> • {toast.orderData?.items?.length} items
                     </div>
@@ -549,14 +514,14 @@ export default function App() {
                   <button 
                     className="btn-primary" 
                     style={{ flex: 1, padding: '8px 12px', fontSize: '12px', justifyContent: 'center', background: 'var(--primary)', boxShadow: 'none' }}
-                    onClick={() => acceptOrder(toast.orderData?._id, toast.orderData)}
+                    onClick={() => acceptOrder(toast.orderData?._id)}
                   >
                     <Check size={12} /> Accept
                   </button>
                   <button 
                     className="btn-secondary" 
                     style={{ flex: 1, padding: '8px 12px', fontSize: '12px', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.05)' }}
-                    onClick={() => rejectOrder(toast.orderData?._id, toast.orderData)}
+                    onClick={() => rejectOrder(toast.orderData?._id)}
                   >
                     <X size={12} /> Reject
                   </button>
@@ -567,11 +532,11 @@ export default function App() {
 
           return (
             <div key={toast.id} className="toast-notification">
-              <div className="logo-icon" style={{ width: '28px', height: '28px', borderRadius: '6px' }}>
-                <Bell size={14} color="#ffffff" />
+              <div className="logo-icon" style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                <Bell size={14} />
               </div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#ffffff' }}>{toast.title}</div>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>{toast.title}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{toast.message}</div>
               </div>
             </div>

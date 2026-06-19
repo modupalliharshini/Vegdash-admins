@@ -7,13 +7,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function check() {
   try {
-    const { data, error } = await supabase.from('orders').select('_id, customer, orderStatus, driver, createdAt');
+    const { data, error } = await supabase.from('orders').select('*');
     if (error) {
       console.error('Error fetching orders:', error);
       return;
     }
     console.log(`Found ${data.length} orders in total:`);
-    console.log(JSON.stringify(data, null, 2));
+    if (data.length > 0) {
+      console.log('KEYS:', Object.keys(data[0]));
+      console.log('FIRST ORDER:', JSON.stringify(data[0], null, 2));
+    }
   } catch (err) {
     console.error('Exception:', err);
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag,
   DollarSign,
@@ -41,7 +41,7 @@ export const SuperadminDashboard: React.FC<SuperadminDashboardProps> = ({
   theme = 'dark',
   onToggleTheme,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'restaurants' | 'users' | 'riders' | 'coupons' | 'payouts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'restaurants' | 'users' | 'riders' | 'coupons' | 'payouts' | 'overrides'>('overview');
   const [loading, setLoading] = useState(false);
 
   // Commission and Payout states
@@ -360,6 +360,11 @@ export const SuperadminDashboard: React.FC<SuperadminDashboardProps> = ({
             <li>
               <div className={`nav-item ${activeTab === 'payouts' ? 'active' : ''}`} onClick={() => { setActiveTab('payouts'); setSelectedRestStats(null); }}>
                 <Percent size={18} /> Payouts & Commission
+              </div>
+            </li>
+            <li>
+              <div className={`nav-item ${activeTab === 'overrides' ? 'active' : ''}`} onClick={() => { setActiveTab('overrides'); setSelectedRestStats(null); }}>
+                <Shield size={18} /> System Order Overrides
               </div>
             </li>
           </ul>
@@ -998,6 +1003,137 @@ export const SuperadminDashboard: React.FC<SuperadminDashboardProps> = ({
             </div>
           </div>
         )}
+
+        {/* TAB 7: SYSTEM ORDER OVERRIDES */}
+        {activeTab === 'overrides' && (
+          <div>
+            <div className="page-header">
+              <div>
+                <h2 className="page-title">System Order Overrides</h2>
+                <p className="page-subtitle">Elevated admin panel to override status, reassign riders, or cancel orders</p>
+              </div>
+              <button className="btn-secondary" onClick={onRefresh}>
+                <RefreshCw size={14} /> Refresh Orders
+              </button>
+            </div>
+
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Restaurant</th>
+                      <th>Customer</th>
+                      <th>Rider Email</th>
+                      <th>OTP Code</th>
+                      <th>Status</th>
+                      <th>Transitions</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((o) => {
+                      let itemDriver: any = null;
+                      if (o.driver) {
+                        try {
+                          itemDriver = typeof o.driver === 'string' ? JSON.parse(o.driver) : o.driver;
+                        } catch (_) {}
+                      }
+                      return (
+                        <tr key={o._id}>
+                          <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                            #{o._id.substring(0, 8)}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{o.restaurant}</td>
+                          <td>{getCustomerName(o.customer)}</td>
+                          <td>{itemDriver ? itemDriver.email : 'Unassigned'}</td>
+                          <td style={{ color: 'var(--warning)', fontWeight: 'bold' }}>{o.pickup_otp || 'None'}</td>
+                          <td>
+                            <span className={`badge ${o.status || o.orderStatus}`}>
+                              {(o.status || o.orderStatus || '').replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            {o.placed_at && <div>Placed: {new Date(o.placed_at).toLocaleTimeString()}</div>}
+                            {o.ready_for_pickup_at && <div>Ready: {new Date(o.ready_for_pickup_at).toLocaleTimeString()}</div>}
+                            {o.delivered_at && <div>Delivered: {new Date(o.delivered_at).toLocaleTimeString()}</div>}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                              {(o.status !== 'cancelled' && o.status !== 'delivered' && o.orderStatus !== 'cancelled' && o.orderStatus !== 'delivered') && (
+                                <>
+                                  <button
+                                    className="btn-primary"
+                                    style={{ padding: '6px 10px', fontSize: '11px', background: 'var(--danger)', borderColor: 'transparent' }}
+                                    onClick={async () => {
+                                      if (window.confirm('Force cancel this order?')) {
+                                        const { error } = await supabase.rpc('super_admin_cancel_order', { p_order_id: o._id });
+                                        if (error) alert(error.message);
+                                        else onRefresh();
+                                      }
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ padding: '6px 10px', fontSize: '11px' }}
+                                    onClick={async () => {
+                                      const emailInput = window.prompt('Enter new rider email (e.g. rohan@vegdash.com):');
+                                      if (!emailInput) return;
+                                      
+                                      let riderUuid = '55555555-5555-5555-5555-555555555555'; // Rohan's seed ID
+                                      let riderName = 'Rohan Sharma';
+                                      if (emailInput.includes('amit')) {
+                                        riderUuid = '66666666-6666-6666-6666-666666666666'; // Amit's seed ID
+                                        riderName = 'Amit Singh';
+                                      }
+
+                                      const driverJSON = {
+                                        name: riderName,
+                                        email: emailInput,
+                                        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150',
+                                        phone: '9876543210',
+                                        pickupCode: o.pickup_otp || '1234',
+                                        location: { lat: 17.4483, lng: 78.3741, progress: 0, stage: 'to_store' }
+                                      };
+
+                                      const { error } = await supabase.rpc('super_admin_reassign_rider', {
+                                        p_order_id: o._id,
+                                        p_rider_id: riderUuid,
+                                        p_driver_json: driverJSON
+                                      });
+                                      if (error) alert(error.message);
+                                      else onRefresh();
+                                    }}
+                                  >
+                                    Reassign Rider
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* AUDIT LOG REPORTING */}
+            <div style={{ marginTop: '40px' }}>
+              <div className="page-header" style={{ marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ color: '#ffffff', fontSize: '18px' }}>Auditable Order Status History Logs</h3>
+                  <p className="page-subtitle">Platform-wide transitions from order_status_history table</p>
+                </div>
+              </div>
+              <AuditLogsList />
+            </div>
+          </div>
+        )}
           </>
         )}
 
@@ -1105,6 +1241,61 @@ export const SuperadminDashboard: React.FC<SuperadminDashboardProps> = ({
         </div>
       )}
 
+    </div>
+  );
+};
+
+const AuditLogsList: React.FC = () => {
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAuditLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('order_status_history')
+        .select('*')
+        .order('changed_at', { ascending: false });
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAuditLogs();
+  }, []);
+
+  if (loading) return <div style={{ color: 'var(--text-secondary)' }}>Loading audit logs...</div>;
+
+  return (
+    <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Changed Status</th>
+            <th>Timestamp</th>
+            <th>Changed By Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h) => (
+            <tr key={h.id}>
+              <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>#{h.order_id?.substring(0, 8)}</td>
+              <td>
+                <span className={`badge ${h.status}`}>
+                  {h.status}
+                </span>
+              </td>
+              <td>{new Date(h.changed_at).toLocaleString()}</td>
+              <td style={{ color: 'var(--text-secondary)' }}>{h.changed_by}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

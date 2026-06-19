@@ -1,37 +1,39 @@
 import React, { useState } from 'react';
-import { Lock, Mail, ShieldAlert, UtensilsCrossed } from 'lucide-react';
+import { Lock, User, ShieldAlert, UtensilsCrossed } from 'lucide-react';
+import { ADMIN_CREDENTIALS } from '../config/adminCredentials';
 
 interface LoginViewProps {
   onLogin: (user: { email: string; role: 'superadmin' | 'admin'; restaurantId?: string }) => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
+  const [adminId, setAdminId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
 
-    const emailTrim = email.trim().toLowerCase();
-
-    // Direct credentials validation
-    if (emailTrim === 'superadmin@vegdash.com' && password === 'superadmin') {
-      onLogin({ email: emailTrim, role: 'superadmin' });
-    } else if (emailTrim === 'ishtaa@vegdash.com' && password === 'admin') {
-      onLogin({ email: emailTrim, role: 'admin', restaurantId: 'res_1' });
-    } else if (emailTrim === 'jain@vegdash.com' && password === 'admin') {
-      onLogin({ email: emailTrim, role: 'admin', restaurantId: 'res_2' });
-    } else if (emailTrim === 'sattvik@vegdash.com' && password === 'admin') {
-      onLogin({ email: emailTrim, role: 'admin', restaurantId: 'res_3' });
-    } else {
-      setError('Invalid email or password. Try using the demo login buttons below.');
+    try {
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const user = ADMIN_CREDENTIALS.find(c => c.id === adminId && c.password === password);
+      
+      if (user) {
+        // We use adminId as "email" for backward compatibility in App state
+        onLogin({ email: user.id, role: user.role, restaurantId: user.restaurantId });
+      } else {
+        setError('Invalid Admin ID or password.');
+      }
+    } catch (err: any) {
+      setError('An error occurred during login.');
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const handleDemoLogin = (role: 'superadmin' | 'admin', email: string, restaurantId?: string) => {
-    onLogin({ email, role, restaurantId });
   };
 
   return (
@@ -61,13 +63,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Mail size={14} style={{ color: 'var(--text-secondary)' }} /> Email Address
+              <User size={14} style={{ color: 'var(--text-secondary)' }} /> Admin ID
             </label>
             <input 
-              type="email" 
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="name@vegdash.com"
+              type="text" 
+              value={adminId}
+              onChange={e => setAdminId(e.target.value)}
+              placeholder="e.g., admin_ishtaa"
               required
               className="form-input" 
             />
@@ -87,40 +89,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             />
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px', justifyContent: 'center', padding: '12px' }}>
-            Log In to Console
+          <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '8px', justifyContent: 'center', padding: '12px' }}>
+            {loading ? 'Logging in...' : 'Log In to Console'}
           </button>
         </form>
-
-        {/* Demo Fast Login Bypass Panel */}
-        <div className="demo-accounts-panel">
-          <div className="demo-title">Demo Fast Access Accounts</div>
-          <div className="demo-buttons-grid">
-            <button 
-              className="demo-login-btn"
-              onClick={() => handleDemoLogin('superadmin', 'superadmin@vegdash.com')}
-            >
-              <span>Platform Superadmin</span>
-              <span className="demo-login-badge superadmin">Superadmin</span>
-            </button>
-            
-            <button 
-              className="demo-login-btn"
-              onClick={() => handleDemoLogin('admin', 'ishtaa@vegdash.com', 'res_1')}
-            >
-              <span>Ishtaa Pure Veg</span>
-              <span className="demo-login-badge">res_1 partner</span>
-            </button>
-
-            <button 
-              className="demo-login-btn"
-              onClick={() => handleDemoLogin('admin', 'jain@vegdash.com', 'res_2')}
-            >
-              <span>Jain Bhoj Kitchen</span>
-              <span className="demo-login-badge">res_2 partner</span>
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>

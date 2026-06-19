@@ -23,7 +23,7 @@ export const popularRestaurants: RestaurantType[] = [
   {
     id: 'res_2', // Maps to res_2 in DB
     name: 'Jain Bhoj',
-    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?q=80&w=300&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?q=80&w=300&auto=format&fit=crop',
     rating: '4.8',
     time: '30-40 mins',
     price: '₹200 for one',

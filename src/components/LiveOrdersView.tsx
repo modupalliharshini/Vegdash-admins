@@ -182,10 +182,10 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
 
   // Split orders into queues
-  const pendingOrders = orders.filter(o => o.orderStatus === 'placed');
-  const preparingOrders = orders.filter(o => o.orderStatus === 'preparing');
-  const readyOrders = orders.filter(o => o.orderStatus === 'ready_for_pickup' || o.orderStatus === 'out_for_delivery');
-  const historyOrders = orders.filter(o => o.orderStatus === 'delivered' || o.orderStatus === 'cancelled');
+  const pendingOrders = orders.filter(o => o.orderStatus === 'placed' || o.status === 'placed');
+  const preparingOrders = orders.filter(o => o.orderStatus === 'preparing' || o.status === 'preparing');
+  const readyOrders = orders.filter(o => o.orderStatus === 'ready_for_pickup' || o.status === 'ready_for_pickup' || o.orderStatus === 'rider_assigned' || o.status === 'rider_assigned' || o.orderStatus === 'out_for_delivery' || o.status === 'out_for_delivery');
+  const historyOrders = orders.filter(o => o.orderStatus === 'delivered' || o.status === 'delivered' || o.orderStatus === 'cancelled' || o.status === 'cancelled');
 
   const getActiveList = () => {
     switch (queueTab) {
@@ -199,49 +199,43 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
   const displayedOrders = getActiveList();
 
-
-
   const updateStatus = async (orderId: string, nextStatus: string) => {
     setUpdatingId(orderId);
     try {
-      const targetOrder = orders.find(o => o._id === orderId);
-      const now = new Date().toISOString();
-      const statusHistoryUpdate = [
-        ...targetOrder.statusHistory,
-        { status: nextStatus, timestamp: now }
-      ];
-
-      const updatePayload: any = {
-        orderStatus: nextStatus,
-        statusHistory: statusHistoryUpdate,
-        updatedAt: now
-      };
-
-      if (nextStatus === 'ready_for_pickup') {
-        const randomCode = String(Math.floor(1000 + Math.random() * 9000));
-        updatePayload.driver = JSON.stringify({
-          name: 'Assigning partner...',
-          pickupCode: randomCode
-        });
+      let rpcError = null;
+      if (nextStatus === 'preparing') {
+        const { error } = await supabase.rpc('accept_order', { p_order_id: orderId });
+        rpcError = error;
+      } else if (nextStatus === 'ready_for_pickup') {
+        const { error } = await supabase.rpc('mark_order_ready', { p_order_id: orderId });
+        rpcError = error;
+      } else if (nextStatus === 'out_for_delivery') {
+        const { error } = await supabase.rpc('confirm_order_pickup', { p_order_id: orderId });
+        rpcError = error;
+      } else if (nextStatus === 'delivered') {
+        const { error } = await supabase.rpc('mark_order_delivered', { p_order_id: orderId });
+        rpcError = error;
+      } else if (nextStatus === 'cancelled') {
+        const { error } = await supabase.rpc('super_admin_cancel_order', { p_order_id: orderId });
+        rpcError = error;
       }
 
-      const { error } = await supabase
-        .from('orders')
-        .update(updatePayload)
-        .eq('_id', orderId);
-
-      if (error) throw error;
+      if (rpcError) throw rpcError;
       
       await onRefresh();
       
       // Update currently open modal if active
       if (selectedOrder && selectedOrder._id === orderId) {
-        setSelectedOrder((prev: any) => ({
-          ...prev,
-          orderStatus: nextStatus,
-          statusHistory: statusHistoryUpdate,
-          driver: updatePayload.driver || prev.driver
-        }));
+        setSelectedOrder((prev: any) => {
+          if (!prev) return prev;
+          const updatedRow = orders.find(o => o._id === orderId) || prev;
+          return {
+            ...prev,
+            ...updatedRow,
+            orderStatus: nextStatus,
+            status: nextStatus
+          };
+        });
       }
     } catch (err: any) {
       console.error('Failed to update order status:', err.message);
@@ -412,7 +406,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                           )}
 
                           {/* Ready for Pickup status controls */}
-                          {o.orderStatus === 'ready_for_pickup' && (() => {
+                          {(o.orderStatus === 'ready_for_pickup' || o.status === 'ready_for_pickup') && (() => {
                             let itemDriver: any = null;
                             if (o.driver) {
                               try {
@@ -432,6 +426,29 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                               </div>
                             );
                           })()}
+
+                          {/* Rider Assigned (Pending OTP Verification) */}
+                          {(o.orderStatus === 'rider_assigned' || o.status === 'rider_assigned') && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--warning)', fontStyle: 'italic' }}>
+                                Rider assigned! OTP Verification
+                              </span>
+                              {o.pickup_otp_verified ? (
+                                <button
+                                  className="btn-primary"
+                                  style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--primary)', boxShadow: 'none' }}
+                                  onClick={() => updateStatus(o._id, 'out_for_delivery')}
+                                  disabled={updatingId === o._id}
+                                >
+                                  Confirm Pickup
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  Waiting for rider to verify OTP...
+                                </span>
+                              )}
+                            </div>
+                          )}
 
 
                           {/* Out for Delivery status controls */}
@@ -660,20 +677,35 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                   </button>
                 )}
 
-                {selectedOrder.orderStatus === 'ready_for_pickup' && (
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 12px' }}>
-                    Waiting for rider acceptance...
-                  </span>
-                )}
+                 {(selectedOrder.orderStatus === 'ready_for_pickup' || selectedOrder.status === 'ready_for_pickup') && (
+                   <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 12px' }}>
+                     Waiting for rider acceptance...
+                   </span>
+                 )}
 
-                {selectedOrder.orderStatus === 'out_for_delivery' && (
-                  <button 
-                    className="btn-primary"
-                    onClick={() => updateStatus(selectedOrder._id, 'delivered')}
-                  >
-                    Mark Delivered
-                  </button>
-                )}
+                 {(selectedOrder.orderStatus === 'rider_assigned' || selectedOrder.status === 'rider_assigned') && (
+                   selectedOrder.pickup_otp_verified ? (
+                     <button 
+                       className="btn-primary"
+                       onClick={() => updateStatus(selectedOrder._id, 'out_for_delivery')}
+                     >
+                       Confirm Pickup
+                     </button>
+                   ) : (
+                     <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 12px' }}>
+                       Waiting for rider to verify OTP...
+                     </span>
+                   )
+                 )}
+
+                 {(selectedOrder.orderStatus === 'out_for_delivery' || selectedOrder.status === 'out_for_delivery') && (
+                   <button 
+                     className="btn-primary"
+                     onClick={() => updateStatus(selectedOrder._id, 'delivered')}
+                   >
+                     Mark Delivered
+                   </button>
+                 )}
               </div>
             </div>
           </div>
