@@ -250,6 +250,56 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     updateStatus(orderId, 'cancelled');
   };
 
+  const handleReleaseRider = async (order: any) => {
+    if (!window.confirm('Are you sure you want to release the current rider? This will place the order back in the queue for other riders to accept.')) {
+      return;
+    }
+    
+    setUpdatingId(order._id);
+    try {
+      const defaultDriver = {
+        name: 'Assigning partner...',
+        pickupCode: order.pickup_otp || '1234'
+      };
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'ready_for_pickup',
+          orderStatus: 'ready_for_pickup',
+          rider_id: null,
+          driver: JSON.stringify(defaultDriver),
+          pickup_otp_verified: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('_id', order._id);
+
+      if (error) throw error;
+
+      await onRefresh();
+
+      // Update currently open modal if active
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: 'ready_for_pickup',
+            orderStatus: 'ready_for_pickup',
+            rider_id: null,
+            driver: JSON.stringify(defaultDriver),
+            pickup_otp_verified: false
+          };
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to release rider assignment:', err.message);
+      alert('Error releasing rider: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
 
 
   return (
@@ -443,9 +493,26 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                                   Confirm Pickup
                                 </button>
                               ) : (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  Waiting for rider to verify OTP...
-                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                    Waiting for rider to verify OTP...
+                                  </span>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '10px',
+                                      color: 'var(--danger)',
+                                      borderColor: 'rgba(239, 68, 68, 0.2)',
+                                      background: 'rgba(239, 68, 68, 0.05)',
+                                      borderRadius: '4px',
+                                    }}
+                                    onClick={() => handleReleaseRider(o)}
+                                    disabled={updatingId === o._id}
+                                  >
+                                    Reset/Reassign Rider
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
@@ -684,19 +751,36 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                  )}
 
                  {(selectedOrder.orderStatus === 'rider_assigned' || selectedOrder.status === 'rider_assigned') && (
-                   selectedOrder.pickup_otp_verified ? (
-                     <button 
-                       className="btn-primary"
-                       onClick={() => updateStatus(selectedOrder._id, 'out_for_delivery')}
-                     >
-                       Confirm Pickup
-                     </button>
-                   ) : (
-                     <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 12px' }}>
-                       Waiting for rider to verify OTP...
-                     </span>
-                   )
-                 )}
+                    selectedOrder.pickup_otp_verified ? (
+                      <button 
+                        className="btn-primary"
+                        onClick={() => updateStatus(selectedOrder._id, 'out_for_delivery')}
+                      >
+                        Confirm Pickup
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 12px' }}>
+                          Waiting for rider to verify OTP...
+                        </span>
+                        <button
+                          className="btn-secondary"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            color: 'var(--danger)',
+                            borderColor: 'rgba(239, 68, 68, 0.2)',
+                            background: 'rgba(239, 68, 68, 0.05)',
+                            borderRadius: '6px',
+                          }}
+                          onClick={() => handleReleaseRider(selectedOrder)}
+                          disabled={updatingId === selectedOrder._id}
+                        >
+                          Reset/Reassign Rider
+                        </button>
+                      </div>
+                    )
+                  )}
 
                  {(selectedOrder.orderStatus === 'out_for_delivery' || selectedOrder.status === 'out_for_delivery') && (
                    <button 

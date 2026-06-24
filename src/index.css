@@ -69,10 +69,10 @@
 }
 
 /* Light theme overrides for hardcoded elements */
-.light-theme [style*="#ffffff"],
-.light-theme [style*="#fff"],
-.light-theme [style*="rgb(255, 255, 255)"],
-.light-theme [style*="white"] {
+.light-theme [style*="#ffffff"]:not(button):not(.btn):not([class*="btn-"]),
+.light-theme [style*="#fff"]:not(button):not(.btn):not([class*="btn-"]),
+.light-theme [style*="rgb(255, 255, 255)"]:not(button):not(.btn):not([class*="btn-"]),
+.light-theme [style*="white"]:not(button):not(.btn):not([class*="btn-"]) {
   color: var(--text-primary) !important;
 }
 
